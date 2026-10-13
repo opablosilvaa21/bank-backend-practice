@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "BankBackendApplication (porta 8080)",
+            "request": "launch",
+            "mainClass": "dev.practice.bank.BankBackendApplication",
+            "projectName": "bank-backend-practice",
+            "console": "integratedTerminal"
+        }
+    ]
+}

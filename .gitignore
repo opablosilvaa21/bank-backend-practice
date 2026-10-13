@@ -1,0 +1,16 @@
+# Build output
+target/
+
+# IDEs (IntelliJ, VS Code local state)
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# Logs e arquivos do sistema
+*.log
+.DS_Store
+Thumbs.db

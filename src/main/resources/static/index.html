@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevBank | Cadastro de clientes</title>
+  <meta name="description" content="Consulta de dados cadastrais, documentos e contatos de clientes.">
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;600;700&family=Red+Hat+Text:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/main.js"></script>
+  <script src="js/boot-check.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#registry">Pular para a lista de clientes</a>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="logo" href="./" aria-label="DevBank, início">
+        <img class="logo__mark" src="img/logo.svg" alt="" width="40" height="40">
+        <span class="logo__word">DevBank</span>
+      </a>
+      <span class="topbar__product">Cadastro de clientes</span>
+      <span class="api-status" id="api-status" data-state="loading">Conectando</span>
+    </div>
+  </header>
+
+  <section class="hero" aria-labelledby="page-title">
+    <div class="hero__inner">
+      <div>
+        <h1 class="hero__title" id="page-title">Clientes cadastrados</h1>
+        <p class="hero__lead">Dados cadastrais, documentos e contatos dos clientes.</p>
+      </div>
+
+      <dl class="hero__stats" id="summary" aria-live="polite">
+        <div><dt>Clientes</dt><dd id="summary-customers">–</dd></div>
+        <div><dt>Contas ativas</dt><dd id="summary-active">–</dd></div>
+        <div><dt>Bloqueadas</dt><dd id="summary-blocked">–</dd></div>
+        <div><dt>Encerradas</dt><dd id="summary-closed">–</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <main class="workspace">
+    <section class="registry" id="registry" aria-label="Lista de clientes">
+      <div class="registry__head">
+        <form class="registry__filters" role="search" id="registry-filters">
+          <label class="search-field">
+            <span class="visually-hidden">Buscar cliente por nome</span>
+            <svg class="search-field__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" name="name" placeholder="Buscar por nome" autocomplete="off">
+          </label>
+          <label class="select-field">
+            <span class="visually-hidden">Ordenar</span>
+            <select name="sort">
+              <option value="id,asc">Mais antigos primeiro</option>
+              <option value="id,desc">Mais recentes primeiro</option>
+              <option value="fullName,asc">Nome, de A a Z</option>
+              <option value="fullName,desc">Nome, de Z a A</option>
+            </select>
+          </label>
+        </form>
+        <p class="registry__range" id="pager-range"></p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="registry__table">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col">CPF</th>
+              <th scope="col">E-mail</th>
+              <th scope="col">Nascimento</th>
+              <th scope="col">Contas</th>
+            </tr>
+          </thead>
+          <tbody id="registry-rows"></tbody>
+        </table>
+      </div>
+
+      <nav class="pager" aria-label="Paginação">
+        <button type="button" class="button button--ghost" id="pager-prev">Anterior</button>
+        <span class="pager__page" id="pager-page"></span>
+        <button type="button" class="button button--ghost" id="pager-next">Próxima</button>
+      </nav>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Projeto fictício para estudo. Os dados são gerados automaticamente e não correspondem a pessoas reais.
+  </footer>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="drawer" aria-labelledby="drawer-title" hidden tabindex="-1"></aside>
+
+  <dialog class="dialog" id="operation-dialog"></dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <div class="boot-error" id="boot-error" role="alert" hidden>
+    <h2 class="boot-error__title">A página não conseguiu iniciar</h2>
+    <p id="boot-error-message"></p>
+    <ol class="boot-error__steps">
+      <li>No terminal, dentro de <code>bank-backend-practice</code>, rode <code>.\mvnw.cmd spring-boot:run</code>.</li>
+      <li>Espere aparecer “Base fictícia criada”.</li>
+      <li>Abra <a href="http://localhost:8080">http://localhost:8080</a> e recarregue com Ctrl+F5.</li>
+    </ol>
+  </div>
+</body>
+</html>
