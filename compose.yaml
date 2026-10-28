@@ -15,5 +15,10 @@ services:   #lista dos containes do projeto
       interval: 5s
       timeout: 3s
       retries: 10
+  kafka:   # um nó só, em modo KRaft (sem ZooKeeper); a imagem oficial já vem pronta para localhost:9092
+    image: apache/kafka:4.4.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
 volumes:
   pgdata:
