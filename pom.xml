@@ -40,6 +40,16 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Versiona o schema: aplica os scripts de src/main/resources/db/migration ao subir -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Sem @Transactional no teste: cada transferência precisa fazer commit de verdade.
  * O @DirtiesContext recria o banco para não afetar outros testes.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:concurrency-${random.uuid}")
+@SpringBootTest(properties =
+        "spring.datasource.url=jdbc:h2:mem:concurrency-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TransferConcurrencyTest {
 

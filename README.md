@@ -294,7 +294,7 @@ Contas fixas, usadas nos exemplos e nos testes:
 
 - [x] Trocar o H2 por PostgreSQL com Docker Compose
 - [ ] Rodar os testes num PostgreSQL real com Testcontainers
-- [ ] Versionar o schema com Flyway
+- [x] Versionar o schema com Flyway
 - [ ] Autenticação com Spring Security e JWT
 - [ ] Idempotência nas transferências (cabeçalho `Idempotency-Key`)
 
