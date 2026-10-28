@@ -10,7 +10,7 @@ import dev.practice.bank.pix.PixDtos.PixTransferRequest;
 import dev.practice.bank.shared.Cpf;
 import dev.practice.bank.transfer.SameAccountTransferException;
 import dev.practice.bank.transfer.TransferChannel;
-import dev.practice.bank.transfer.TransferResponse;
+import dev.practice.bank.transfer.TransferResult;
 import dev.practice.bank.transfer.TransferService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,14 +73,14 @@ public class PixService {
 
     /** Resolve a chave para a conta de destino e reaproveita a mesma lógica da transferência. */
     @Transactional
-    public TransferResponse transfer(PixTransferRequest request) {
+    public TransferResult transfer(PixTransferRequest request, String idempotencyKey) {
         PixKey key = find(request.key());
         Long toAccountId = key.getAccount().getId();
         if (toAccountId.equals(request.fromAccountId())) {
             throw new SameAccountTransferException();
         }
         return transfers.execute(request.fromAccountId(), toAccountId, request.amount(),
-                TransferChannel.PIX, request.description());
+                TransferChannel.PIX, request.description(), idempotencyKey);
     }
 
     private PixKey find(String rawKey) {

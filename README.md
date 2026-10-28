@@ -210,15 +210,36 @@ Resposta `201 Created`:
 
 | Status | Quando |
 |---|---|
-| 201 | Transferência realizada |
-| 400 | Campo ausente, valor ≤ 0, mais de 2 casas decimais, JSON malformado ou origem igual ao destino |
+| 201 | Transferência realizada (ou repetida: veja Idempotency-Key abaixo) |
+| 400 | Campo ausente, valor ≤ 0, mais de 2 casas decimais, JSON malformado, origem igual ao destino ou Idempotency-Key inválida |
 | 404 | Conta de origem ou de destino não existe |
-| 422 | Saldo insuficiente, ou conta de origem ou destino bloqueada ou encerrada |
+| 422 | Saldo insuficiente, conta bloqueada ou encerrada, ou Idempotency-Key já usada com outros dados |
 
 Os erros seguem o formato `{"error": "mensagem"}`. Erros de validação trazem também
 `"fields": {"campo": "mensagem"}`.
 
 O Pix reaproveita o mesmo núcleo da transferência, depois de resolver a conta de destino pela chave.
+
+### Idempotency-Key: repetir sem pagar duas vezes
+
+Se a resposta se perde (timeout, queda de rede), o cliente não sabe se a transferência aconteceu. Para poder
+repetir com segurança, ele envia um cabeçalho `Idempotency-Key` com um valor único por operação (um UUID, por
+exemplo). Vale para `POST /api/transfers` e `POST /api/pix/transfers`. O cabeçalho é opcional.
+
+```bash
+curl -i -X POST http://localhost:8080/api/transfers   -H "Content-Type: application/json" -H "Idempotency-Key: 7f9c1e2a-pedido-1"   -d '{"fromAccountId": 1, "toAccountId": 2, "amount": 250.00}'
+```
+
+| Situação | Resultado |
+|---|---|
+| Chave nova | Transfere e responde `201` |
+| Mesma chave e mesmos dados | **Não transfere de novo.** Responde `201` com o mesmo corpo da primeira vez e `Idempotent-Replayed: true` |
+| Mesma chave com outros dados | `422`: a chave pertence a outra operação |
+| Mesma chave chegando em paralelo | Uma executa; as outras esperam o lock das contas e recebem a resposta repetida |
+
+A chave fica na tabela `transfers` (coluna `UNIQUE`), junto com um SHA-256 dos dados do pedido. Ela é conferida
+depois do `SELECT ... FOR UPDATE` das contas, e por isso pedidos repetidos em paralelo não passam juntos
+([`TransferConcurrencyTest`](src/test/java/dev/practice/bank/transfer/TransferConcurrencyTest.java)).
 
 ## Regras de negócio
 
@@ -305,7 +326,7 @@ Contas fixas, usadas nos exemplos e nos testes:
 - [x] Rodar os testes num PostgreSQL real
 - [x] Versionar o schema com Flyway
 - [ ] Autenticação com Spring Security e JWT
-- [ ] Idempotência nas transferências (cabeçalho `Idempotency-Key`)
+- [x] Idempotência nas transferências (cabeçalho `Idempotency-Key`)
 
 ## Autor
 

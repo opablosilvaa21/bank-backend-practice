@@ -4,12 +4,15 @@ import dev.practice.bank.pix.PixDtos.CreatePixKeyRequest;
 import dev.practice.bank.pix.PixDtos.PixKeyLookupResponse;
 import dev.practice.bank.pix.PixDtos.PixKeyResponse;
 import dev.practice.bank.pix.PixDtos.PixTransferRequest;
+import dev.practice.bank.transfer.IdempotencyKey;
 import dev.practice.bank.transfer.TransferResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,14 +37,18 @@ public class PixController {
     }
 
     @PostMapping("/api/pix/transfers")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Envia um Pix para uma chave")
-    @ApiResponse(responseCode = "201", description = "Pix realizado")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos ou chave da própria conta")
+    @Operation(summary = "Envia um Pix para uma chave",
+            description = "Envie uma Idempotency-Key para poder repetir o pedido sem pagar duas vezes.")
+    @ApiResponse(responseCode = "201", description = "Pix realizado (ou repetido, com Idempotent-Replayed: true)")
+    @ApiResponse(responseCode = "400", description = "Dados inválidos, Idempotency-Key inválida ou chave da própria conta")
     @ApiResponse(responseCode = "404", description = "Conta de origem ou chave não encontrada")
-    @ApiResponse(responseCode = "422", description = "Saldo insuficiente ou conta bloqueada/encerrada")
-    public TransferResponse transfer(@Valid @RequestBody PixTransferRequest request) {
-        return service.transfer(request);
+    @ApiResponse(responseCode = "422",
+            description = "Saldo insuficiente, conta bloqueada/encerrada ou Idempotency-Key já usada com outros dados")
+    public ResponseEntity<TransferResponse> transfer(
+            @Parameter(description = "Chave única da operação, como um UUID. Opcional.")
+            @RequestHeader(name = IdempotencyKey.HEADER, required = false) String idempotencyKey,
+            @Valid @RequestBody PixTransferRequest request) {
+        return service.transfer(request, idempotencyKey).toResponseEntity();
     }
 
     @GetMapping("/api/accounts/{accountId}/pix-keys")
