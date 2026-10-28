@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -39,13 +40,16 @@ class TransferServiceTest {
     @Mock
     TransferRepository transfers;
 
+    @Mock
+    ApplicationEventPublisher events;
+
     TransferService service;
     Account ana;
     Account bruno;
 
     @BeforeEach
     void setUp() {
-        service = new TransferService(repository, transactions, transfers);
+        service = new TransferService(repository, transactions, transfers, events);
         ana = account(1L, "1500.00");
         bruno = account(2L, "850.00");
     }
@@ -223,6 +227,36 @@ class TransferServiceTest {
         assertThat(bruno.getBalance()).isEqualByComparingTo("850.00");
         verify(transfers, never()).save(any());
         verifyNoInteractions(transactions);
+        // A transferência é a mesma: nada de evento novo (nem notificação duplicada).
+        verifyNoInteractions(events);
+    }
+
+    @Test
+    void publicaOEventoComOsDadosDaTransferencia() {
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+
+        TransferResponse response = service.transfer(new TransferRequest(1L, 2L, new BigDecimal("30.00")));
+
+        ArgumentCaptor<TransferCompletedEvent> captor = ArgumentCaptor.forClass(TransferCompletedEvent.class);
+        verify(events).publishEvent(captor.capture());
+        TransferCompletedEvent event = captor.getValue();
+        assertThat(event.transferId()).isEqualTo(response.transferId());
+        assertThat(event.channel()).isEqualTo(TransferChannel.TRANSFERENCIA);
+        assertThat(event.fromOwnerName()).isEqualTo("Titular 1");
+        assertThat(event.toOwnerName()).isEqualTo("Titular 2");
+        assertThat(event.amount()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    void naoPublicaEventoQuandoATransferenciaFalha() {
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+
+        assertThatThrownBy(() -> service.transfer(new TransferRequest(1L, 2L, new BigDecimal("9999.00"))))
+                .isInstanceOf(InsufficientBalanceException.class);
+
+        verifyNoInteractions(events);
     }
 
     @Test

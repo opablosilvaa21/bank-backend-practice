@@ -8,6 +8,7 @@ import dev.practice.bank.transaction.AccountTransaction;
 import dev.practice.bank.transaction.AccountTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,12 +27,14 @@ public class TransferService {
     private final AccountRepository accounts;
     private final AccountTransactionRepository transactions;
     private final TransferRepository transfers;
+    private final ApplicationEventPublisher events;
 
     public TransferService(AccountRepository accounts, AccountTransactionRepository transactions,
-                           TransferRepository transfers) {
+                           TransferRepository transfers, ApplicationEventPublisher events) {
         this.accounts = accounts;
         this.transactions = transactions;
         this.transfers = transfers;
+        this.events = events;
     }
 
     /** Transferência sem Idempotency-Key: cada chamada movimenta dinheiro. */
@@ -103,6 +106,10 @@ public class TransferService {
         transactions.saveAll(List.of(
                 AccountTransaction.apply(from, channel.sentType(), amount, sentDescription, transferId, now),
                 AccountTransaction.apply(to, channel.receivedType(), amount, receivedDescription, transferId, now)));
+
+        // Quem escuta decide quando reagir: o @TransactionalEventListener só recebe depois do commit.
+        events.publishEvent(new TransferCompletedEvent(transferId, channel, fromId, from.getOwnerName(),
+                toId, to.getOwnerName(), amount, Money.CURRENCY, now));
 
         // Log sem nome do titular nem saldo: só IDs e valor.
         log.info("{} concluído: id={} origem={} destino={} valor={}", channel, transferId, fromId, toId, amount);
