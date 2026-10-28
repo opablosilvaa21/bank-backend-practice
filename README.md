@@ -46,7 +46,7 @@ O foco do projeto é o que mais importa em um back-end bancário:
 |---|---|
 | Linguagem | Java 21 |
 | Framework | Spring Boot 3.5 (Web, Data JPA, Validation) |
-| Banco de dados | PostgreSQL 17 (instalado ou via Docker Compose); H2 em memória nos testes |
+| Banco de dados | PostgreSQL 17 (instalado ou via Docker Compose), schema versionado com Flyway |
 | Documentação | OpenAPI 3 e Swagger UI (springdoc) |
 | Testes | JUnit 5, Mockito, MockMvc |
 | Build e CI | Maven Wrapper, GitHub Actions |
@@ -247,18 +247,27 @@ crédito correspondente. O `transferId` em comum permite auditar e reconciliar a
 
 ## Testes
 
+Os testes usam um PostgreSQL de verdade, no banco `bank_test` (separado do `bank` da aplicação). Crie-o uma
+vez com `CREATE DATABASE bank_test OWNER bank;`. Com Docker, rode antes
+`docker exec postgres createdb -U bank bank_test`. Outra conexão pode ser passada por `TEST_DB_URL`.
+
 ```bash
 ./mvnw test
 ```
 
+Cada contexto de teste apaga o schema, roda as migrations do Flyway e gera a base fictícia de novo
+([`TestDatabaseConfig`](src/test/java/dev/practice/bank/TestDatabaseConfig.java)). Os testes de API usam
+`@Transactional` e desfazem tudo no fim. O de concorrência faz commits de verdade, por isso roda num schema
+próprio.
+
 | Tipo | O que cobre |
 |---|---|
 | Unidade | Regras da entidade `Account`, validação de CPF e `TransferService` com Mockito |
-| API (MockMvc + H2) | Clientes, contas, extrato, transferências e Pix, incluindo os casos de erro |
+| API (MockMvc + PostgreSQL) | Clientes, contas, extrato, transferências e Pix, incluindo os casos de erro |
 | Dados | A base gerada é coerente (saldo igual à soma do extrato) |
 | Concorrência | Transferências simultâneas não deixam saldo negativo nem causam deadlock ([`TransferConcurrencyTest`](src/test/java/dev/practice/bank/transfer/TransferConcurrencyTest.java)) |
 
-O GitHub Actions roda a suíte inteira a cada push e em cada pull request.
+O GitHub Actions roda a suíte inteira a cada push e em cada pull request, com um PostgreSQL 17 de serviço.
 
 ## Dados fictícios
 
@@ -293,7 +302,7 @@ Contas fixas, usadas nos exemplos e nos testes:
 ## Próximos passos
 
 - [x] Trocar o H2 por PostgreSQL com Docker Compose
-- [ ] Rodar os testes num PostgreSQL real com Testcontainers
+- [x] Rodar os testes num PostgreSQL real
 - [x] Versionar o schema com Flyway
 - [ ] Autenticação com Spring Security e JWT
 - [ ] Idempotência nas transferências (cabeçalho `Idempotency-Key`)

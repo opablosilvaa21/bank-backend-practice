@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Sobe a aplicação inteira com o H2 em memória e as contas de demonstração:
+ * Sobe a aplicação inteira com o PostgreSQL de teste e as contas de demonstração:
  * 1 = R$ 1.500,00, 2 = R$ 850,00, 3 = R$ 3.200,00.
  * O @Transactional desfaz (rollback) as alterações ao fim de cada teste.
  */

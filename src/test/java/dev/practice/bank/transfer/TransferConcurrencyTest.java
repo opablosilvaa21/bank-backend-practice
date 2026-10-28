@@ -18,10 +18,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Dispara transferências em paralelo para provar que o lock pessimista
  * impede saldo negativo, "lost update" e deadlock.
  * Sem @Transactional no teste: cada transferência precisa fazer commit de verdade.
- * O @DirtiesContext recria o banco para não afetar outros testes.
+ * Roda num schema próprio ("concurrency") para os commits não afetarem os outros testes.
+ * O @DirtiesContext recria o contexto, e o TestDatabaseConfig zera o schema antes de cada teste.
  */
-@SpringBootTest(properties =
-        "spring.datasource.url=jdbc:h2:mem:concurrency-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
+@SpringBootTest(properties = {
+        "spring.flyway.schemas=concurrency",
+        "spring.datasource.hikari.schema=concurrency"
+})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TransferConcurrencyTest {
 
