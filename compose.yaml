@@ -1,0 +1,24 @@
+services:   #lista dos containes do projeto
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bank
+      POSTGRES_DB: bank
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:   # "healthy" só quando o Postgres aceita conexões
+      test: ["CMD-SHELL", "pg_isready -U bank -d bank"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  kafka:   # um nó só, em modo KRaft (sem ZooKeeper); a imagem oficial já vem pronta para localhost:9092
+    image: apache/kafka:4.4.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+volumes:
+  pgdata:

@@ -15,13 +15,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
@@ -34,13 +37,19 @@ class TransferServiceTest {
     @Mock
     AccountTransactionRepository transactions;
 
+    @Mock
+    TransferRepository transfers;
+
+    @Mock
+    ApplicationEventPublisher events;
+
     TransferService service;
     Account ana;
     Account bruno;
 
     @BeforeEach
     void setUp() {
-        service = new TransferService(repository, transactions);
+        service = new TransferService(repository, transactions, transfers, events);
         ana = account(1L, "1500.00");
         bruno = account(2L, "850.00");
     }
@@ -185,6 +194,98 @@ class TransferServiceTest {
         order.verify(repository).findByIdForUpdate(2L);
         assertThat(bruno.getBalance()).isEqualByComparingTo("840.00");
         assertThat(ana.getBalance()).isEqualByComparingTo("1510.00");
+    }
+
+    @Test
+    void gravaATransferenciaComAChaveDeIdempotencia() {
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+        when(transfers.findByIdempotencyKey("chave-1")).thenReturn(Optional.empty());
+
+        TransferResult result = service.transfer(new TransferRequest(1L, 2L, new BigDecimal("100.00")), "chave-1");
+
+        ArgumentCaptor<Transfer> captor = ArgumentCaptor.forClass(Transfer.class);
+        verify(transfers).save(captor.capture());
+        assertThat(captor.getValue().getIdempotencyKey()).isEqualTo("chave-1");
+        assertThat(captor.getValue().getRequestHash()).hasSize(64);
+        assertThat(captor.getValue().getId()).isEqualTo(result.response().transferId());
+        assertThat(result.replayed()).isFalse();
+    }
+
+    @Test
+    void mesmaChaveDevolveATransferenciaOriginalSemMovimentarDeNovo() {
+        Transfer original = previous("chave-1", new BigDecimal("100.00"));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+        when(transfers.findByIdempotencyKey("chave-1")).thenReturn(Optional.of(original));
+
+        TransferResult result = service.transfer(new TransferRequest(1L, 2L, new BigDecimal("100")), "chave-1");
+
+        assertThat(result.replayed()).isTrue();
+        assertThat(result.response().transferId()).isEqualTo(original.getId());
+        assertThat(ana.getBalance()).isEqualByComparingTo("1500.00");
+        assertThat(bruno.getBalance()).isEqualByComparingTo("850.00");
+        verify(transfers, never()).save(any());
+        verifyNoInteractions(transactions);
+        // A transferência é a mesma: nada de evento novo (nem notificação duplicada).
+        verifyNoInteractions(events);
+    }
+
+    @Test
+    void publicaOEventoComOsDadosDaTransferencia() {
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+
+        TransferResponse response = service.transfer(new TransferRequest(1L, 2L, new BigDecimal("30.00")));
+
+        ArgumentCaptor<TransferCompletedEvent> captor = ArgumentCaptor.forClass(TransferCompletedEvent.class);
+        verify(events).publishEvent(captor.capture());
+        TransferCompletedEvent event = captor.getValue();
+        assertThat(event.transferId()).isEqualTo(response.transferId());
+        assertThat(event.channel()).isEqualTo(TransferChannel.TRANSFERENCIA);
+        assertThat(event.fromOwnerName()).isEqualTo("Titular 1");
+        assertThat(event.toOwnerName()).isEqualTo("Titular 2");
+        assertThat(event.amount()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    void naoPublicaEventoQuandoATransferenciaFalha() {
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+
+        assertThatThrownBy(() -> service.transfer(new TransferRequest(1L, 2L, new BigDecimal("9999.00"))))
+                .isInstanceOf(InsufficientBalanceException.class);
+
+        verifyNoInteractions(events);
+    }
+
+    @Test
+    void mesmaChaveComOutroValorEhRecusada() {
+        Transfer original = previous("chave-1", new BigDecimal("100.00"));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(ana));
+        when(repository.findByIdForUpdate(2L)).thenReturn(Optional.of(bruno));
+        when(transfers.findByIdempotencyKey("chave-1")).thenReturn(Optional.of(original));
+
+        assertThatThrownBy(() -> service.transfer(new TransferRequest(1L, 2L, new BigDecimal("100.01")), "chave-1"))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+
+        assertThat(ana.getBalance()).isEqualByComparingTo("1500.00");
+        verifyNoInteractions(transactions);
+    }
+
+    @Test
+    void chaveInvalidaEhRecusadaAntesDeTravarAsContas() {
+        assertThatThrownBy(() -> service.transfer(new TransferRequest(1L, 2L, BigDecimal.TEN), "chave com espaço"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.transfer(new TransferRequest(1L, 2L, BigDecimal.TEN), "x".repeat(65)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(repository);
+    }
+
+    private static Transfer previous(String key, BigDecimal amount) {
+        String hash = IdempotencyKey.fingerprint(TransferChannel.TRANSFERENCIA, 1L, 2L, amount, null);
+        return new Transfer(TransferChannel.TRANSFERENCIA, 1L, 2L, amount, null, Instant.now(), key, hash);
     }
 
     private static Account account(Long id, String balance) {

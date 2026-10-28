@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Sobe a aplicação inteira com o H2 em memória e as contas de demonstração:
+ * Sobe a aplicação inteira com o PostgreSQL de teste e as contas de demonstração:
  * 1 = R$ 1.500,00, 2 = R$ 850,00, 3 = R$ 3.200,00.
  * O @Transactional desfaz (rollback) as alterações ao fim de cada teste.
  */
@@ -141,8 +141,83 @@ class TransferApiIntegrationTest {
                 .andExpect(jsonPath("$.error").exists());
     }
 
+    @Test
+    void mesmaIdempotencyKeyDuasVezesTransfereUmaVezSo() throws Exception {
+        String body = """
+                {"fromAccountId": 1, "toAccountId": 2, "amount": 100}
+                """;
+        String first = transfer(body, "pedido-123")
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"))
+                .andReturn().getResponse().getContentAsString();
+
+        // O cliente não recebeu a resposta (timeout, queda de rede) e repete o mesmo pedido.
+        transfer(body, "pedido-123")
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andExpect(content().json(first, true));
+
+        assertThat(repository.findById(1L).orElseThrow().getBalance()).isEqualByComparingTo("1400.00");
+        assertThat(repository.findById(2L).orElseThrow().getBalance()).isEqualByComparingTo("950.00");
+    }
+
+    @Test
+    void mesmaIdempotencyKeyComOutroValorRetorna422() throws Exception {
+        transfer("""
+                {"fromAccountId": 1, "toAccountId": 2, "amount": 100}
+                """, "pedido-456")
+                .andExpect(status().isCreated());
+
+        transfer("""
+                {"fromAccountId": 1, "toAccountId": 2, "amount": 200}
+                """, "pedido-456")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error", containsString("Idempotency-Key")));
+
+        assertThat(repository.findById(1L).orElseThrow().getBalance()).isEqualByComparingTo("1400.00");
+    }
+
+    @Test
+    void idempotencyKeyInvalidaRetorna400() throws Exception {
+        transfer("""
+                {"fromAccountId": 1, "toAccountId": 2, "amount": 100}
+                """, "não vale")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsString("Idempotency-Key")));
+    }
+
+    @Test
+    void pixTambemAceitaIdempotencyKey() throws Exception {
+        // O CPF sai mascarado pela API, então o teste cadastra uma chave aleatória na conta 2 e paga para ela.
+        String key = com.jayway.jsonpath.JsonPath.read(mvc.perform(post("/api/accounts/2/pix-keys")
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"type": "ALEATORIA"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(), "$.key");
+        String body = """
+                {"fromAccountId": 1, "key": "%s", "amount": 50}
+                """.formatted(key);
+
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/pix/transfers").header("Idempotency-Key", "pix-789")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(repository.findById(1L).orElseThrow().getBalance()).isEqualByComparingTo("1450.00");
+    }
+
     private org.springframework.test.web.servlet.ResultActions transfer(String json) throws Exception {
         return mvc.perform(post("/api/transfers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions transfer(String json, String idempotencyKey)
+            throws Exception {
+        return mvc.perform(post("/api/transfers")
+                .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json));
     }

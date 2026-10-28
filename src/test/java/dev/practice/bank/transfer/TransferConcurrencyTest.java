@@ -9,6 +9,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,9 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Dispara transferências em paralelo para provar que o lock pessimista
  * impede saldo negativo, "lost update" e deadlock.
  * Sem @Transactional no teste: cada transferência precisa fazer commit de verdade.
- * O @DirtiesContext recria o banco para não afetar outros testes.
+ * Roda num schema próprio ("concurrency") para os commits não afetarem os outros testes.
+ * O @DirtiesContext recria o contexto, e o TestDatabaseConfig zera o schema antes de cada teste.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:concurrency-${random.uuid}")
+@SpringBootTest(properties = {
+        "spring.flyway.schemas=concurrency",
+        "spring.datasource.hikari.schema=concurrency"
+})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TransferConcurrencyTest {
 
@@ -68,6 +74,26 @@ class TransferConcurrencyTest {
         assertThat(balance(2L).add(balance(3L))).isEqualByComparingTo(totalBefore);
         assertThat(balance(2L)).isEqualByComparingTo("850.00");
         assertThat(balance(3L)).isEqualByComparingTo("3200.00");
+    }
+
+    @Test
+    void mesmaIdempotencyKeyEmParaleloTransfereUmaVezSo() throws Exception {
+        // Cliente impaciente: o mesmo pedido chega 10 vezes ao mesmo tempo.
+        Set<UUID> transferIds = ConcurrentHashMap.newKeySet();
+        AtomicInteger replayed = new AtomicInteger();
+
+        runInParallel(10, i -> {
+            TransferResult result = service.transfer(new TransferRequest(1L, 2L, new BigDecimal("100.00")), "pedido-unico");
+            transferIds.add(result.response().transferId());
+            if (result.replayed()) {
+                replayed.incrementAndGet();
+            }
+        });
+
+        assertThat(transferIds).hasSize(1);
+        assertThat(replayed.get()).isEqualTo(9);
+        assertThat(balance(1L)).isEqualByComparingTo("1400.00");
+        assertThat(balance(2L)).isEqualByComparingTo("950.00");
     }
 
     private BigDecimal balance(Long id) {
