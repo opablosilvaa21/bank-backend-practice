@@ -46,7 +46,7 @@ O foco do projeto é o que mais importa em um back-end bancário:
 |---|---|
 | Linguagem | Java 21 |
 | Framework | Spring Boot 3.5 (Web, Data JPA, Validation) |
-| Banco de dados | H2 em memória |
+| Banco de dados | PostgreSQL 17 (instalado ou via Docker Compose); H2 em memória nos testes |
 | Documentação | OpenAPI 3 e Swagger UI (springdoc) |
 | Testes | JUnit 5, Mockito, MockMvc |
 | Build e CI | Maven Wrapper, GitHub Actions |
@@ -98,7 +98,22 @@ sequenceDiagram
 
 ## Como executar
 
-**Pré-requisito:** JDK 21. Não é preciso instalar o Maven nem um banco de dados.
+**Pré-requisitos:** JDK 21 e um PostgreSQL 17 na porta 5432, pelo Docker ou instalado na máquina.
+Não é preciso instalar o Maven.
+
+**1. Banco de dados**, escolha uma opção:
+
+- **Com Docker:** `docker compose up -d` sobe o PostgreSQL do [`compose.yaml`](compose.yaml) já com o
+  banco `bank`, o usuário `bank` e a senha `bank`.
+- **PostgreSQL instalado** (no Windows: `winget install PostgreSQL.PostgreSQL.17`): crie o usuário e o banco
+  uma única vez, entrando como `postgres`:
+
+  ```sql
+  CREATE ROLE bank LOGIN PASSWORD 'bank';
+  CREATE DATABASE bank OWNER bank;
+  ```
+
+**2. Aplicação:**
 
 ```bash
 git clone https://github.com/opablosilvaa21/bank-backend-practice.git
@@ -106,15 +121,22 @@ cd bank-backend-practice
 ./mvnw spring-boot:run
 ```
 
-No Windows (PowerShell), use `.\mvnw.cmd spring-boot:run`.
+No Windows (PowerShell), use `.\mvnw.cmd spring-boot:run`. As tabelas são criadas ao subir.
 
 | Recurso | Endereço |
 |---|---|
 | Interface web | http://localhost:8080 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
-| Console H2 | http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:bankdb`, usuário `sa`, sem senha) |
+| PostgreSQL | `localhost:5432`, banco `bank`, usuário `bank`, senha `bank` |
 
-O banco fica em memória e é recriado toda vez que a aplicação sobe.
+Os dados ficam salvos no PostgreSQL e continuam lá depois que a aplicação para. A base fictícia só é gerada
+quando o banco está vazio. Para consultar o banco pelo terminal: `psql -h localhost -U bank -d bank`
+(com Docker: `docker exec -it postgres psql -U bank -d bank`).
+
+Para começar com uma base nova: `docker compose down -v` (o `-v` apaga o volume) ou, no PostgreSQL instalado,
+`DROP DATABASE bank;` seguido de `CREATE DATABASE bank OWNER bank;`.
+
+A conexão pode ser trocada pelas variáveis de ambiente `DB_URL`, `DB_USERNAME` e `DB_PASSWORD`.
 
 ### Teste rápido
 
@@ -257,6 +279,9 @@ bank.demo.seed=42        # outra semente gera outra base
 bank.demo.enabled=true   # false sobe o banco vazio
 ```
 
+Como a base só é gerada com o banco vazio, depois de mudar esses valores recrie o banco (veja
+[Como executar](#como-executar)).
+
 Contas fixas, usadas nos exemplos e nos testes:
 
 | ID | Cliente | Saldo inicial |
@@ -267,7 +292,8 @@ Contas fixas, usadas nos exemplos e nos testes:
 
 ## Próximos passos
 
-- [ ] Trocar o H2 por PostgreSQL com Docker Compose
+- [x] Trocar o H2 por PostgreSQL com Docker Compose
+- [ ] Rodar os testes num PostgreSQL real com Testcontainers
 - [ ] Versionar o schema com Flyway
 - [ ] Autenticação com Spring Security e JWT
 - [ ] Idempotência nas transferências (cabeçalho `Idempotency-Key`)
