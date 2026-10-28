@@ -20,6 +20,7 @@ import java.lang.annotation.Target;
         "bank.messaging.enabled=true",
         "bank.messaging.partitions=1",
         "bank.outbox.relay.interval-ms=100",
+        "bank.messaging.retry.interval-ms=100",
         "spring.flyway.schemas=messaging",
         "spring.datasource.hikari.schema=messaging"
 })
