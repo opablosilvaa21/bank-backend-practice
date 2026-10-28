@@ -3,6 +3,7 @@ package dev.practice.bank.notification;
 import dev.practice.bank.transfer.TransferCompletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -18,8 +19,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *   todas seguram uma conexão e esperam outra: o pool esgota e tudo trava (o TransferConcurrencyTest pegou isso).
  *   Em outra thread, a transferência responde na hora e a notificação ganha uma transação só dela.
  * - Limite: se a aplicação cair entre o commit e este método, a notificação se perde. O outbox resolve isso.
+ *
+ * Só existe com a mensageria desligada. Ligada, o evento vai para o outbox e a notificação vem do Kafka.
  */
 @Component
+@ConditionalOnProperty(name = "bank.messaging.enabled", havingValue = "false", matchIfMissing = true)
 public class TransferNotificationListener {
 
     private static final Logger log = LoggerFactory.getLogger(TransferNotificationListener.class);

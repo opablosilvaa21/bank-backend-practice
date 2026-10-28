@@ -6,12 +6,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Infraestrutura de mensageria, ativa só com bank.messaging.enabled=true.
  * Desligada, nenhum bean aqui existe e a aplicação nem tenta falar com o Kafka.
+ * O @EnableScheduling liga o relay do outbox (OutboxRelay).
  */
 @Configuration
+@EnableScheduling
 @ConditionalOnProperty(name = "bank.messaging.enabled", havingValue = "true")
 public class MessagingConfig {
 

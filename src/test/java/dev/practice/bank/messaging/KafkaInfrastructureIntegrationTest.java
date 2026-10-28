@@ -5,12 +5,10 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
-import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 
 import java.time.Duration;
@@ -20,12 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Com a mensageria ligada, a aplicação cria os tópicos e consegue publicar e ler no Kafka. */
-@SpringBootTest(properties = {
-        "bank.messaging.enabled=true",
-        "spring.flyway.schemas=messaging",
-        "spring.datasource.hikari.schema=messaging"
-})
-@EmbeddedKafka(bootstrapServersProperty = "spring.kafka.bootstrap-servers")
+@MessagingTest
 class KafkaInfrastructureIntegrationTest {
 
     @Autowired KafkaAdmin admin;
@@ -36,7 +29,8 @@ class KafkaInfrastructureIntegrationTest {
     void criaOsTopicosAoSubir() {
         assertThat(admin.describeTopics(Topics.TRANSFERS, Topics.TRANSFERS_DLT)).containsOnlyKeys(
                 Topics.TRANSFERS, Topics.TRANSFERS_DLT);
-        assertThat(admin.describeTopics(Topics.TRANSFERS).get(Topics.TRANSFERS).partitions()).hasSize(3);
+        // Nos testes, uma partição (bank.messaging.partitions=1 em @MessagingTest); na aplicação, 3.
+        assertThat(admin.describeTopics(Topics.TRANSFERS).get(Topics.TRANSFERS).partitions()).hasSize(1);
     }
 
     @Test
