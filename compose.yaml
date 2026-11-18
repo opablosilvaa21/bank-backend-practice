@@ -1,4 +1,4 @@
-services:   #lista dos containes do projeto
+services:   # containers do ambiente local: docker compose up -d
   postgres:
     image: postgres:17
     container_name: postgres
